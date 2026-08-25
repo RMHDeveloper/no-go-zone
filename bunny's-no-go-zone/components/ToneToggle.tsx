@@ -4,7 +4,7 @@ import { Tone } from '../types';
 import { TONES } from '../constants';
 
 interface ToneToggleProps {
-  selected: Tone;
+  selected: Tone | null;
   onChange: (tone: Tone) => void;
 }
 

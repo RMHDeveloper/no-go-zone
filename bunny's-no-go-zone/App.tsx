@@ -1,32 +1,25 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Category, Medium, Reason, Tone, ScriptResponse } from './types';
-import { 
-  CATEGORIES, 
-  MEDIUMS, 
-  REASONS, 
-  DEFAULT_CATEGORY, 
-  DEFAULT_MEDIUM, 
-  DEFAULT_REASON, 
-  DEFAULT_TONE 
-} from './constants';
+import { CATEGORIES, MEDIUMS, REASONS } from './constants';
 import Chip from './components/Chip';
 import ToneToggle from './components/ToneToggle';
 import ResponseCard from './components/ResponseCard';
 import { generateNoScript } from './services/gemini';
 
 function App() {
-  const [category, setCategory] = useState<Category>(DEFAULT_CATEGORY);
-  const [medium, setMedium] = useState<Medium>(DEFAULT_MEDIUM);
-  const [reason, setReason] = useState<Reason>(DEFAULT_REASON);
-  const [tone, setTone] = useState<Tone>(DEFAULT_TONE);
+  const [category, setCategory] = useState<Category | null>(null);
+  const [medium, setMedium] = useState<Medium | null>(null);
+  const [reason, setReason] = useState<Reason | null>(null);
+  const [tone, setTone] = useState<Tone | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   const [script, setScript] = useState<ScriptResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Determine the effective context being sent to the AI
-  const effectiveCategory = searchQuery.trim() || category;
+  const effectiveCategory = searchQuery.trim() || category || '';
+  const isReady = Boolean(effectiveCategory && medium && reason && tone);
 
   // Filter categories based on search (standard behavior)
   const filteredCategories = useMemo(() => {
@@ -36,6 +29,7 @@ function App() {
   }, [searchQuery]);
 
   const updateScript = useCallback(async () => {
+    if (!medium || !reason || !tone || !effectiveCategory) return;
     setIsLoading(true);
     try {
       // Use effectiveCategory (either the typed query or the selected chip)
@@ -48,14 +42,18 @@ function App() {
     }
   }, [effectiveCategory, medium, reason, tone]);
 
-  // Generate initial script and react to state changes
+  // Only generate once the user has picked a category, medium, reason, and tone
   useEffect(() => {
+    if (!isReady) {
+      setScript(null);
+      return;
+    }
     const timer = setTimeout(() => {
       updateScript();
     }, 500); // Add a small debounce for typing
 
     return () => clearTimeout(timer);
-  }, [effectiveCategory, medium, reason, tone, updateScript]);
+  }, [isReady, effectiveCategory, medium, reason, tone, updateScript]);
 
   return (
     <div className="min-h-screen pb-20 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
@@ -169,12 +167,22 @@ function App() {
         <section className="space-y-6 pt-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <h2 className="text-lg font-bold text-slate-900">
-              Response for: <span className="text-indigo-600 capitalize">{effectiveCategory}</span>
+              {isReady ? (
+                <>Response for: <span className="text-indigo-600 capitalize">{effectiveCategory}</span></>
+              ) : (
+                <span className="text-slate-400">Pick a category, platform, and reason above</span>
+              )}
             </h2>
             <ToneToggle selected={tone} onChange={setTone} />
           </div>
 
-          <ResponseCard content={script} isLoading={isLoading} />
+          {isReady ? (
+            <ResponseCard content={script} isLoading={isLoading} />
+          ) : (
+            <div className="w-full bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-8 text-center text-slate-400 font-medium">
+              Select a category, platform, reason, and tone to generate your script.
+            </div>
+          )}
         </section>
 
       </main>
