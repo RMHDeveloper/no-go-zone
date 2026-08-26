@@ -1,11 +1,15 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Category, Medium, Reason, Tone, ScriptResponse } from './types';
-import { CATEGORIES, MEDIUMS, REASONS } from './constants';
+import {
+  CATEGORIES, MEDIUMS, REASONS,
+  CATEGORY_ICONS, CATEGORY_COLORS, MEDIUM_ICONS, REASON_ICONS,
+} from './constants';
 import Chip from './components/Chip';
 import ToneToggle from './components/ToneToggle';
 import ResponseCard from './components/ResponseCard';
 import { generateNoScript } from './services/gemini';
+import { SearchIcon, SparklesIcon, GridIcon, ArrowRightIcon, GlobeIcon, HelpCircleIcon, HeartIcon } from './components/Icons';
 
 function App() {
   const [category, setCategory] = useState<Category | null>(null);
@@ -77,27 +81,49 @@ function App() {
       {/* Main Controls Section */}
       <main className="space-y-8">
         
-        {/* Search & Categories */}
+        {/* Search & Generate */}
         <section className="space-y-4">
-          <div className="flex items-center justify-between mb-1">
-             <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Search or type custom context</label>
-             {searchQuery && (
-               <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full animate-pulse">
-                 USING CUSTOM SEARCH
-               </span>
-             )}
-          </div>
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <div className="relative group flex items-center bg-white border border-slate-200 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-all">
+            <div className="pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+              <SearchIcon className="h-5 w-5" />
             </div>
             <input
               type="text"
               placeholder="Search categories or type custom (e.g. Wedding invitation)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-4 py-4 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-slate-900 font-medium placeholder:text-slate-400"
+              className="w-full pl-3 pr-2 py-4 bg-transparent outline-none text-slate-900 font-medium placeholder:text-slate-400"
             />
+            <button
+              onClick={() => isReady && updateScript()}
+              disabled={!isReady}
+              className="m-1.5 flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 disabled:opacity-40 disabled:hover:bg-indigo-600 transition-all"
+            >
+              <SparklesIcon className="w-4 h-4" />
+              Generate
+            </button>
+          </div>
+          {searchQuery && (
+            <span className="inline-block text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full animate-pulse">
+              USING CUSTOM SEARCH
+            </span>
+          )}
+        </section>
+
+        {/* Popular Categories */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-indigo-600">
+              <GridIcon className="w-4 h-4" />
+              <span className="text-sm font-bold">Popular Categories</span>
+            </div>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="flex items-center gap-1 text-xs font-bold text-indigo-500 hover:text-indigo-700"
+            >
+              View all categories
+              <ArrowRightIcon className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -105,6 +131,9 @@ function App() {
               <Chip
                 key={cat}
                 label={cat}
+                variant="card"
+                icon={CATEGORY_ICONS[cat]}
+                iconColorClass={CATEGORY_COLORS[cat]}
                 isActive={category === cat && !searchQuery}
                 onClick={() => {
                   setCategory(cat);
@@ -115,7 +144,7 @@ function App() {
             {filteredCategories.length === 0 && searchQuery && (
               <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-full">
                 <span className="text-sm font-semibold text-indigo-600">Custom: "{searchQuery}"</span>
-                <button 
+                <button
                   onClick={() => setSearchQuery('')}
                   className="text-indigo-400 hover:text-indigo-600"
                 >
@@ -127,34 +156,38 @@ function App() {
         </section>
 
         {/* Medium & Reason Selectors */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+        <section className="space-y-6 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <div className="space-y-3">
-            <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Platform / Medium</label>
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <GlobeIcon className="w-4 h-4" />
+              <label className="text-xs font-black uppercase tracking-widest">Platform / Medium</label>
+            </div>
             <div className="flex flex-wrap gap-2">
               {MEDIUMS.map((m) => (
-                <button
+                <Chip
                   key={m}
+                  label={m}
+                  variant="pill"
+                  icon={MEDIUM_ICONS[m]}
+                  isActive={medium === m}
                   onClick={() => setMedium(m)}
-                  className={`
-                    px-4 py-2 rounded-xl text-sm font-bold border transition-all
-                    ${medium === m 
-                      ? 'bg-slate-900 border-slate-900 text-white' 
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}
-                  `}
-                >
-                  {m}
-                </button>
+                />
               ))}
             </div>
           </div>
 
           <div className="space-y-3">
-            <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Why are you saying no?</label>
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <HelpCircleIcon className="w-4 h-4" />
+              <label className="text-xs font-black uppercase tracking-widest">Why are you saying no?</label>
+            </div>
             <div className="flex flex-wrap gap-2">
               {REASONS.map((r) => (
                 <Chip
                   key={r}
                   label={r}
+                  variant="pill"
+                  icon={REASON_ICONS[r]}
                   isActive={reason === r}
                   onClick={() => setReason(r)}
                 />
@@ -165,15 +198,24 @@ function App() {
 
         {/* Tone Selector & Hero Response */}
         <section className="space-y-6 pt-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <h2 className="text-lg font-bold text-slate-900">
-              {isReady ? (
-                <>Response for: <span className="text-indigo-600 capitalize">{effectiveCategory}</span></>
-              ) : (
-                <span className="text-slate-400">Pick a category, platform, and reason above</span>
-              )}
-            </h2>
-            <ToneToggle selected={tone} onChange={setTone} />
+          <div className="flex flex-col gap-4 border-b border-slate-100 pb-4">
+            <div className="flex items-start gap-2 text-center sm:text-left justify-center sm:justify-start">
+              <HeartIcon className="w-5 h-5 text-indigo-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  {isReady ? (
+                    <>Response for: <span className="text-indigo-600 capitalize">{effectiveCategory}</span></>
+                  ) : (
+                    'Pick a category, platform, and reason above'
+                  )}
+                </h2>
+                <p className="text-sm text-slate-400">Get a script that fits your situation perfectly.</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center sm:items-end gap-1.5">
+              <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Tone of the script</span>
+              <ToneToggle selected={tone} onChange={setTone} />
+            </div>
           </div>
 
           {isReady ? (
