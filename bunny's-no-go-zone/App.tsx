@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Category, Medium, Reason, Tone, ScriptResponse } from './types';
 import {
   CATEGORIES, MEDIUMS, REASONS,
@@ -20,6 +20,8 @@ function App() {
 
   const [script, setScript] = useState<ScriptResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const runControllerRef = useRef<AbortController | null>(null);
 
   // Determine the effective context being sent to the AI
   const effectiveCategory = searchQuery.trim() || category || '';
@@ -32,35 +34,42 @@ function App() {
     );
   }, [searchQuery]);
 
+  // Manual trigger: only runs when the user clicks START (or the top Generate button).
   const updateScript = useCallback(async () => {
     if (!medium || !reason || !tone || !effectiveCategory) return;
+
+    // Cancel any run already in flight before starting a new one.
+    runControllerRef.current?.abort();
+    const controller = new AbortController();
+    runControllerRef.current = controller;
+
     setIsLoading(true);
+    setError(null);
     try {
-      // Use effectiveCategory (either the typed query or the selected chip)
-      const res = await generateNoScript(effectiveCategory, medium, reason, tone);
-      setScript(res);
-    } catch (error) {
-      console.error("Error generating script", error);
+      const res = await generateNoScript(effectiveCategory, medium, reason, tone, controller.signal);
+      if (!controller.signal.aborted) setScript(res);
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") return; // superseded by a newer run
+      console.error("Error generating script", err);
+      setError("Couldn't generate a script right now. Please try again.");
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) setIsLoading(false);
     }
   }, [effectiveCategory, medium, reason, tone]);
 
-  // Only generate once the user has picked a category, medium, reason, and tone
+  // Inputs changed — drop any stale output so the user re-runs with START.
   useEffect(() => {
-    if (!isReady) {
-      setScript(null);
-      return;
-    }
-    const timer = setTimeout(() => {
-      updateScript();
-    }, 500); // Add a small debounce for typing
+    runControllerRef.current?.abort();
+    setScript(null);
+    setError(null);
+    setIsLoading(false);
+  }, [effectiveCategory, medium, reason, tone]);
 
-    return () => clearTimeout(timer);
-  }, [isReady, effectiveCategory, medium, reason, tone, updateScript]);
+  // Abort any in-flight request on unmount.
+  useEffect(() => () => runControllerRef.current?.abort(), []);
 
   return (
-    <div className="min-h-screen pb-20 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
+    <div className="min-h-screen overflow-x-hidden pb-20 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
       {/* Header */}
       <header className="py-8 flex flex-col items-center gap-2"> {/* Changed to flex-col and items-center */}
         <img 
@@ -72,7 +81,7 @@ function App() {
         <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight text-center"> {/* Added text-center */}
           Bunny's <span className="text-indigo-600 underline decoration-indigo-200">No-Go</span> Zone
         </h1>
-        <p className="text-md sm:text-lg text-slate-500 font-medium max-w-md mx-auto text-center"> {/* Added text-center, kept mx-auto */}
+        <p className="text-base sm:text-lg text-slate-500 font-medium max-w-md mx-auto text-center">
           Curated & AI-generated scripts to protect your time and set boundaries.
         </p>
         {/* Removed invisible placeholder div */}
@@ -89,18 +98,18 @@ function App() {
             </div>
             <input
               type="text"
-              placeholder="Search categories or type custom (e.g. Wedding invitation)..."
+              placeholder="Search or type a custom topic…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-3 pr-2 py-4 bg-transparent outline-none text-slate-900 font-medium placeholder:text-slate-400"
+              className="w-full min-w-0 pl-3 pr-2 py-4 bg-transparent outline-none text-slate-900 font-medium placeholder:text-slate-400"
             />
             <button
               onClick={() => isReady && updateScript()}
               disabled={!isReady}
-              className="m-1.5 flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 disabled:opacity-40 disabled:hover:bg-indigo-600 transition-all"
+              className="m-1.5 flex-shrink-0 flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 disabled:opacity-40 disabled:hover:bg-indigo-600 transition-all"
             >
-              <SparklesIcon className="w-4 h-4" />
-              Generate
+              <SparklesIcon className="w-4 h-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Generate</span>
             </button>
           </div>
           {searchQuery && (
@@ -112,21 +121,21 @@ function App() {
 
         {/* Popular Categories */}
         <section className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-indigo-600">
-              <GridIcon className="w-4 h-4" />
+              <GridIcon className="w-4 h-4 flex-shrink-0" />
               <span className="text-sm font-bold">Popular Categories</span>
             </div>
             <button
               onClick={() => setSearchQuery('')}
-              className="flex items-center gap-1 text-xs font-bold text-indigo-500 hover:text-indigo-700"
+              className="flex items-center gap-1 whitespace-nowrap flex-shrink-0 text-xs font-bold text-indigo-500 hover:text-indigo-700"
             >
               View all categories
               <ArrowRightIcon className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {filteredCategories.map((cat) => (
               <Chip
                 key={cat}
@@ -142,7 +151,7 @@ function App() {
               />
             ))}
             {filteredCategories.length === 0 && searchQuery && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-full">
+              <div className="col-span-2 sm:col-span-3 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl">
                 <span className="text-sm font-semibold text-indigo-600">Custom: "{searchQuery}"</span>
                 <button
                   onClick={() => setSearchQuery('')}
@@ -156,13 +165,13 @@ function App() {
         </section>
 
         {/* Medium & Reason Selectors */}
-        <section className="space-y-6 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+        <section className="space-y-6 bg-white p-4 sm:p-6 rounded-2xl border border-slate-100 shadow-sm">
           <div className="space-y-3">
             <div className="flex items-center gap-1.5 text-slate-500">
               <GlobeIcon className="w-4 h-4" />
               <label className="text-xs font-black uppercase tracking-widest">Platform / Medium</label>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
               {MEDIUMS.map((m) => (
                 <Chip
                   key={m}
@@ -181,7 +190,7 @@ function App() {
               <HelpCircleIcon className="w-4 h-4" />
               <label className="text-xs font-black uppercase tracking-widest">Why are you saying no?</label>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
               {REASONS.map((r) => (
                 <Chip
                   key={r}
@@ -198,11 +207,11 @@ function App() {
 
         {/* Tone Selector & Hero Response */}
         <section className="space-y-6 pt-4">
-          <div className="flex flex-col gap-4 border-b border-slate-100 pb-4">
-            <div className="flex items-start gap-2 text-center sm:text-left justify-center sm:justify-start">
-              <HeartIcon className="w-5 h-5 text-indigo-500 mt-0.5 flex-shrink-0" />
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">
+          <div className="flex flex-col gap-5 border-b border-slate-100 pb-5">
+            <div className="flex items-start gap-2.5">
+              <HeartIcon className="w-5 h-5 text-indigo-500 mt-1 flex-shrink-0" />
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-slate-900 leading-snug">
                   {isReady ? (
                     <>Response for: <span className="text-indigo-600 capitalize">{effectiveCategory}</span></>
                   ) : (
@@ -212,18 +221,36 @@ function App() {
                 <p className="text-sm text-slate-400">Get a script that fits your situation perfectly.</p>
               </div>
             </div>
-            <div className="flex flex-col items-center sm:items-end gap-1.5">
+            <div className="flex flex-col items-start sm:items-end gap-1.5">
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Tone of the script</span>
               <ToneToggle selected={tone} onChange={setTone} />
             </div>
           </div>
 
-          {isReady ? (
-            <ResponseCard content={script} isLoading={isLoading} />
-          ) : (
-            <div className="w-full bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-8 text-center text-slate-400 font-medium">
-              Select a category, platform, reason, and tone to generate your script.
+          {/* START: generation only runs when the user clicks this */}
+          <button
+            onClick={() => updateScript()}
+            disabled={!isReady || isLoading}
+            className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-2xl text-base font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-[0.99] disabled:opacity-40 disabled:hover:bg-indigo-600 disabled:active:scale-100 transition-all"
+          >
+            <SparklesIcon className="w-5 h-5" />
+            {isLoading ? 'Generating…' : script ? 'Regenerate' : 'Start'}
+          </button>
+
+          {!isReady && (
+            <p className="text-center text-sm text-slate-400 font-medium">
+              Select a category, platform, reason, and tone, then press Start.
+            </p>
+          )}
+
+          {error && (
+            <div className="w-full bg-red-50 border border-red-100 rounded-2xl p-4 text-center text-red-600 font-semibold text-sm">
+              {error}
             </div>
+          )}
+
+          {(isLoading || script) && (
+            <ResponseCard content={script} isLoading={isLoading} />
           )}
         </section>
 

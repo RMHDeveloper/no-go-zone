@@ -19,7 +19,7 @@ const ResponseCard: React.FC<ResponseCardProps> = ({ content, isLoading }) => {
 
   if (isLoading) {
     return (
-      <div className="w-full bg-white border border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center space-y-4 animate-pulse">
+      <div className="w-full bg-white border border-slate-200 rounded-2xl p-5 sm:p-8 flex flex-col items-center justify-center space-y-4 animate-pulse">
         <div className="h-4 w-3/4 bg-slate-100 rounded"></div>
         <div className="h-4 w-1/2 bg-slate-100 rounded"></div>
         <div className="h-4 w-2/3 bg-slate-100 rounded"></div>
@@ -31,14 +31,14 @@ const ResponseCard: React.FC<ResponseCardProps> = ({ content, isLoading }) => {
 
   return (
     <div className="w-full bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden transition-all duration-300 hover:shadow-2xl">
-      <div className="p-8">
+      <div className="p-5 sm:p-8">
         <div className="relative">
-          <p className="text-xl sm:text-2xl text-slate-900 font-medium leading-relaxed whitespace-pre-wrap">
+          <p className="text-lg sm:text-2xl text-slate-900 font-medium leading-relaxed whitespace-pre-wrap break-words">
             {content.text}
           </p>
         </div>
-        
-        <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+
+        <div className="mt-6 sm:mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex flex-col">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Expert Inspiration</span>
             <p className="text-sm font-semibold text-slate-600">
