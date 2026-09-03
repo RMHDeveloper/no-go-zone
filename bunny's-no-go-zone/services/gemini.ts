@@ -31,7 +31,8 @@ export async function generateNoScript(
   4. Provide a famous person or archetype as "Inspiration" relevant to the style (e.g., Ratan Tata, Sudha Murty, or a polite HR Manager).
 
   Respond with ONLY a raw JSON object, nothing before or after it, no markdown code fences.
-  Shape: {"text": "<the message, single string>", "inspiration": "<person or archetype>"}
+  "text" MUST be a single plain string (the full message, including any subject line inline). Do NOT nest objects inside "text".
+  Shape: {"text": "<the message as one string>", "inspiration": "<person or archetype>"}
   Example: {"text": "Hi {{name}}, thank you for thinking of me for {{task}}. Unfortunately I won't be able to take this on right now.", "inspiration": "A polite HR Manager"}`;
 
   if (!process.env.OPENROUTER_API_KEY) {
@@ -78,16 +79,17 @@ export async function generateNoScript(
   }
 
   // Free-router models are inconsistent: they may wrap JSON in ``` fences, add
-  // prose around it, or ignore the JSON instruction entirely.
+  // prose around it, nest the message under {subject, body}, or ignore JSON entirely.
   const withoutFences = raw.replace(/```(?:json)?/gi, "").trim();
   const jsonSlice = withoutFences.match(/\{[\s\S]*\}/)?.[0];
 
   if (jsonSlice) {
     try {
       const data = JSON.parse(jsonSlice);
-      if (typeof data.text === "string" && data.text.trim()) {
+      const text = flattenMessage(data.text ?? data.body ?? data.message ?? data.script ?? data);
+      if (text) {
         return {
-          text: data.text.trim(),
+          text,
           inspiration:
             (typeof data.inspiration === "string" && data.inspiration.trim()) ||
             "A polite professional",
@@ -99,9 +101,26 @@ export async function generateNoScript(
   }
 
   // No usable JSON — the model replied in prose. Use that text directly.
-  console.warn("AI response was not JSON; using it as plain text.", raw);
+  console.warn("AI response was not usable JSON; using it as plain text.", raw);
   return {
     text: withoutFences,
     inspiration: "A polite professional",
   };
+}
+
+/** Coerce whatever shape the model returned for the message into a single string. */
+function flattenMessage(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value)) {
+    return value.map(flattenMessage).filter(Boolean).join("\n\n");
+  }
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const subject = typeof obj.subject === "string" ? obj.subject.trim() : "";
+    const body = flattenMessage(obj.body ?? obj.text ?? obj.message ?? "");
+    if (subject || body) {
+      return [subject && `Subject: ${subject}`, body].filter(Boolean).join("\n\n");
+    }
+  }
+  return "";
 }
