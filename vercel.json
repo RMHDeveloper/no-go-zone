@@ -1,5 +1,1 @@
-{
-  "installCommand": "cd \"bunny's-no-go-zone\" && npm install",
-  "buildCommand": "cd \"bunny's-no-go-zone\" && npm run build",
-  "outputDirectory": "bunny's-no-go-zone/dist"
-}
+{}
