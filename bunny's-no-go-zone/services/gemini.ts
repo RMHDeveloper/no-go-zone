@@ -35,10 +35,6 @@ export async function generateNoScript(
   Shape: {"text": "<the message as one string>", "inspiration": "<person or archetype>"}
   Example: {"text": "Hi {{name}}, thank you for thinking of me for {{task}}. Unfortunately I won't be able to take this on right now.", "inspiration": "A polite HR Manager"}`;
 
-  if (!process.env.OPENROUTER_API_KEY) {
-    throw new Error("An API Key must be set when running in a browser");
-  }
-
   // Free-router models can be slow; give the request a generous cap and honour
   // any caller-supplied signal (e.g. a stale request cancelled by the UI).
   const timeout = new AbortController();
@@ -49,11 +45,10 @@ export async function generateNoScript(
 
   let response: Response;
   try {
-    response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    response = await fetch("/api/proxy", {
       method: "POST",
       signal: timeout.signal,
       headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
